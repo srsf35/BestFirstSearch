@@ -1,0 +1,77 @@
+#lang racket
+(define adjac (list)) ;List of adjacencies
+(define coor (list))  ;List of coordinates
+(define firstCity "") ;Start city
+(define secondCity "") ;Goal city
+(define weight (list)) ;Weighted list. Will be emptied if a solution is found
+(define closed (list)) ;Closed list with nodes visited.
+
+(for ([cities (file->lines "Adjacencies.txt")])
+  (set! adjac (append adjac (list(string-split cities))))) ;Populates ajdac list with contents of the text file
+
+(for ([cities (file->lines "coordinates.txt")])
+  (set! coor (append coor (list(string-split cities))))) ;Populates coor with contents of the text file
+
+(define (promptUser order) ;Prompts the user for a city in this list, returns input if real otherwise prompt again.
+  (display (string-append "Input " order))
+  (define city "")
+  (set! city (read-line))
+  (cond 
+    [(not(list?(for/or ([i adjac]) (member city i)))) (promptUser order)] ;Returns true only if all sublists in adjac do not have input city as a member
+    [else city]) ; Input was found return city.
+  )
+
+(define (euclidean start finish) ;Calculate the euclidean distance between cities for the heuristic.
+  (sqrt (+ (* (- (string->number (list-ref finish 1)) (string->number (list-ref start 1)))
+              (- (string->number (list-ref finish 1)) (string->number (list-ref start 1))))
+           (* (- (string->number (list-ref finish 2)) (string->number (list-ref start 2)))
+              (- (string->number (list-ref finish 2)) (string->number (list-ref start 2)))))
+        )
+  )
+
+(define (graph city) ;Creates weighted lists of nodes to city.
+	(cond
+        [(member (cadar city) closed) (set! weight (remove (first weight) weight))] ;If a the node we are looking at is in our weighted list then pop it.
+	[(string=? (cadar city) secondCity)  (set! weight null)] ;If we found the goal.
+	[(and (not(assoc (cadar city) adjac)) (not(empty? weight))) ;If the node has no adjac relevant paths forward.
+        
+          (set! closed (append closed (first weight))) ;Adds the node to our closed list of visited nodes
+          (set! weight (remove (first weight) weight)) ;Pops the node from the weighted list.
+          (graph (list (first weight))) ;Chooses our next best option. 
+          ]    
+	[(not(empty? weight)) 
+	(for ([i (rest(assoc  (cadar weight) adjac))])
+    	(set! weight (append weight (list  (list (euclidean (assoc i coor) (assoc secondCity coor)) i))))) ;Creates a node with the (weight name)
+        (set! closed (append closed (first weight))) ;Adds the node to our closed list.
+        (set! weight (remove (first weight) weight)) 
+        (set! weight (sort weight #:key car <)) ;Sorts the nodes by weight with the smallest being first. 
+        (graph (list(first weight)))] ;Passes in the best looking node for recursion.
+        )
+  )
+
+  (define (createPath end) ;Creates the path to the end.
+  (set! closed (filter string? closed)) ;Filter the closed list to be only the strings, without the weights.
+   (define path (list))
+  (cond
+    [(not (empty? weight)) (display "No path")] ;If the (graph city) function ended without finding the goal, then weight is not empty.
+    [else 
+     (for ([i closed]) 
+       (cond
+         [(assoc i adjac) (set! path (append path (list i)))] ;If there was a node on the closed list without an adjacency then it is not part of the path.
+       )
+     )
+    (display "Path is: ") ;The rest just displays the output all pretty.
+    (for ([i path])
+      (display (string-append i "=>")))
+    (display secondCity)
+    ]
+    )
+    )
+
+  
+;Because I love imperative programming.
+(set! firstCity (promptUser " First ")) ;Handles first user input
+(set! secondCity (promptUser " Second ")) ;Handles second user input.
+(set! weight (append weight (list (list 0 firstCity)))) ;Hardcoded first element of the weight list, because it breaks otherwise.
+(graph (list (list 0 firstCity))) ;Generates the graph.
+(createPath secondCity) ;Outputs the path, if there is one.
